@@ -3,13 +3,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
 
-import dotenv
-import os
 import os
 from dotenv import load_dotenv
-
-dotenv.load_dotenv()
-
 
 load_dotenv()
 

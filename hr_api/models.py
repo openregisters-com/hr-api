@@ -26,6 +26,7 @@ class Companies(Base):
 
 class ParticipantPersons(Base):
     __tablename__ = "participant_persons"
+    id = Column(Integer, primary_key=True, autoincrement=True)
     role_number = Column(String)
     role_name_code = Column(String, ForeignKey("rollenbezeichnung.code"))
     first_name = Column(String)
@@ -34,36 +35,32 @@ class ParticipantPersons(Base):
     gender_code = Column(String, ForeignKey("geschlecht.code"))
     city = Column(String)
     state_code = Column(String)
-    company_number = Column(
-        String, ForeignKey("companies.company_number"), primary_key=True
-    )
+    company_number = Column(String, ForeignKey("companies.company_number"))
     file_path = Column(String)
 
 
 class ParticipantOrganizations(Base):
     __tablename__ = "participant_organizations"
+    id = Column(Integer, primary_key=True, autoincrement=True)
     role_number = Column(String)
     role_name_code = Column(String, ForeignKey("rollenbezeichnung.code"))
     name = Column(String)
     legal_form_code = Column(String, ForeignKey("rechtsform.code"))
     city = Column(String)
     state_code = Column(String)
-    company_number = Column(
-        String, ForeignKey("companies.company_number"), primary_key=True
-    )
+    company_number = Column(String, ForeignKey("companies.company_number"))
     file_path = Column(String)
 
 
 class Entries(Base):
     __tablename__ = "entries"
+    id = Column(Integer, primary_key=True, autoincrement=True)
     column = Column(String)
     position = Column(String)
     running_number = Column(String)
     entry_type_code = Column(String, ForeignKey("eintragungsart.Schluessel"))
     text = Column(String)
-    company_number = Column(
-        String, ForeignKey("companies.company_number"), primary_key=True
-    )
+    company_number = Column(String, ForeignKey("companies.company_number"))
     file_path = Column(String)
 
 

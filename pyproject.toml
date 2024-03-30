@@ -11,6 +11,7 @@ fastapi = "^0.110.0"
 uvicorn = {extras = ["standard"], version = "^0.29.0"}
 sqlalchemy = "^2.0.28"
 requests = "^2.31.0"
+xmltodict = "^0.13.0"
 
 
 [build-system]
