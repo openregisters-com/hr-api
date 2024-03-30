@@ -286,6 +286,28 @@ def read_company(company_number: str, db: Session = Depends(get_db)):
 
 @app.get("/register-entries/{company_number}")
 def read_entries(company_number: str, db: Session = Depends(get_db)):
+    """
+    Retrieves entries from the database for a given company number.
+
+    Args:
+        company_number (str): The company number for which to retrieve entries.
+        db (Session, optional): The database session. Defaults to Depends(get_db).
+
+    Returns:
+        list: A list of dictionaries containing the retrieved entries in the desired format.
+            Each dictionary represents an entry and contains the following keys:
+            - column: The column of the entry.
+            - position: The position of the entry.
+            - running_number: The running number of the entry.
+            - entry_type_code: A dictionary with the following keys:
+                - value: The value of the entry type code.
+                - label: The label of the entry type code.
+            - text: The text of the entry.
+            - company_number: A dictionary with the following keys:
+                - value: The value of the company number.
+                - label: The label of the company number.
+            - file_path: The file path of the entry.
+    """
     result = db.execute(
         select(
             models.Entries.column,
@@ -332,6 +354,34 @@ def read_entries(company_number: str, db: Session = Depends(get_db)):
 
 @app.get("/participant-organizations/{company_number}")
 def read_participant_organizations(company_number: str, db: Session = Depends(get_db)):
+    """
+    Retrieves participant organizations based on the provided company number.
+
+    Args:
+        company_number (str): The company number to filter participant organizations.
+        db (Session, optional): The database session. Defaults to Depends(get_db).
+
+    Returns:
+        list: A list of dictionaries containing participant organization details.
+            Each dictionary contains the following keys:
+            - role_number (int): The role number of the participant organization.
+            - role_name_code (dict): The role name code of the participant organization,
+                containing the following keys:
+                - value (str): The value of the role name code.
+                - label (str): The label of the role name code.
+            - name (str): The name of the participant organization.
+            - legal_form_code (dict): The legal form code of the participant organization,
+                containing the following keys:
+                - value (str): The value of the legal form code.
+                - label (str): The label of the legal form code.
+            - city (str): The city of the participant organization.
+            - state_code (str): The state code of the participant organization.
+            - company_number (dict): The company number of the participant organization,
+                containing the following keys:
+                - value (str): The value of the company number.
+                - label (str): The label of the company number.
+            - file_path (str): The file path of the participant organization.
+    """
     result = db.execute(
         select(
             models.ParticipantOrganizations.role_number,
@@ -390,6 +440,17 @@ def read_participant_organizations(company_number: str, db: Session = Depends(ge
 
 @app.get("/participant-persons/{company_number}")
 def read_participant_persons(company_number: str, db: Session = Depends(get_db)):
+    """
+    Retrieves participant persons from the database based on the given company number.
+
+    Args:
+        company_number (str): The company number to filter the participant persons.
+        db (Session, optional): The database session. Defaults to Depends(get_db).
+
+    Returns:
+        list: A list of participant persons in the desired format.
+
+    """
     result = db.execute(
         select(
             models.ParticipantPersons.role_number,
@@ -694,6 +755,15 @@ def extract_entries(data_dict, company_number, latest_file_path):
 
 @app.get("/admin/refresh-db")
 def refresh_db(db: Session = Depends(get_db)):
+    """
+    Refreshes the database by deleting existing data and adding new data from XML files.
+
+    Args:
+        db (Session): The database session.
+
+    Returns:
+        dict: A dictionary containing a message indicating the number of companies added to the database.
+    """
     db.execute(text("DELETE FROM companies"))
     db.execute(text("DELETE FROM entries"))
     db.execute(text("DELETE FROM participant_organizations"))
@@ -765,6 +835,12 @@ def refresh_db(db: Session = Depends(get_db)):
 
 @app.get("/analytics/company-with-ownershiptable/count")
 def count_company_with_ownership_table():
+    """
+    Counts the number of companies that have ownership tables.
+
+    Returns:
+        A dictionary with the count of companies that have ownership tables.
+    """
     company_dirs = glob.glob(f"/{DOWNLOAD_FOLDER}/*/*/")
     count = 0
     for company_dir in company_dirs:
@@ -779,6 +855,12 @@ def count_company_with_ownership_table():
 
 @app.get("/analytics/ownership-tables/count")
 def count_ownership_tables():
+    """
+    Counts the number of ownership tables for each company.
+
+    Returns:
+        dict: A dictionary containing the count of ownership tables for each company.
+    """
     company_dirs = glob.glob(f"/{DOWNLOAD_FOLDER}/*/*/")
     count = 0
     for company_dir in company_dirs:
@@ -791,4 +873,10 @@ def count_ownership_tables():
 
 @app.get("/analytics/register-numbers/count")
 def count_registernumbers():
+    """
+    Counts the number of register numbers in the specified download folder.
+
+    Returns:
+        A dictionary containing the count of register numbers.
+    """
     return {"register-numbers": len(glob.glob(f"/{DOWNLOAD_FOLDER}/*/"))}
