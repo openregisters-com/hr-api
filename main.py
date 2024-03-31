@@ -4,6 +4,8 @@ from fastapi import FastAPI, Depends
 import sqlite3
 import requests
 import logging
+import os
+import time
 from sqlalchemy import select
 
 from pydantic import BaseModel, Field
@@ -558,10 +560,10 @@ def extract_company_info(data_dict, latest_file_path):
     current_designation = bezeichnung.get("tns:bezeichnung.aktuell")
 
     angabenZurRechtsform = rechtstraeger.get("tns:angabenZurRechtsform", {})
-    rechtsform = angabenZurRechtsform.get("tns:rechtsform", {})
+    rechtsform = angabenZurRechtsform.get("tns:rechtsform", {}) if angabenZurRechtsform else {}
     legal_form_code = rechtsform.get("code")
 
-    sitz = rechtstraeger.get("tns:sitz", {})
+    sitz = rechtstraeger.get("tns:sitz", {}) if rechtstraeger else {}
     location = sitz.get("tns:ort")
 
     anschrift = rechtstraeger.get("tns:anschrift", {})
@@ -661,7 +663,7 @@ def extract_parties(data_dict, company_number, latest_file_path):
         role_number = role.get("tns:rollennummer")
         rollenbezeichnung = role.get("tns:rollenbezeichnung", {})
         role_name_code = (
-            rollenbezeichnung.get("code") if rollenbezeichnung is not None else None
+            rollenbezeichnung.get("code") if rollenbezeichnung else None
         )
         beteiligter = participant.get("tns:beteiligter", {})
         auswahl_beteiligter = beteiligter.get("tns:auswahl_beteiligter", {})
@@ -671,15 +673,15 @@ def extract_parties(data_dict, company_number, latest_file_path):
             first_name = vollerName.get("tns:vorname")
             last_name = vollerName.get("tns:nachname")
             geburt = person_info.get("tns:geburt", {})
-            birth_date = geburt.get("tns:geburtsdatum") if geburt is not None else None
+            birth_date = geburt.get("tns:geburtsdatum") if geburt else None
             geschlecht = person_info.get("tns:geschlecht", {})
-            gender_code = geschlecht.get("code") if geschlecht is not None else None
+            gender_code = geschlecht.get("code") if geschlecht else None
             anschrift = person_info.get("tns:anschrift", {})
-            city = anschrift.get("tns:ort")
+            city = anschrift.get("tns:ort") 
             staat = anschrift.get("tns:staat", {})
             auswahl_staat = staat.get("tns:auswahl_staat", {})
             staat = auswahl_staat.get("tns:staat", {})
-            state_code = staat.get("code") if staat is not None else None
+            state_code = staat.get("code") if staat else None
 
             parties.append(
                 ParticipantPerson(
@@ -697,18 +699,18 @@ def extract_parties(data_dict, company_number, latest_file_path):
             )
         elif "tns:organisation" in auswahl_beteiligter:
             org_info = auswahl_beteiligter.get("tns:organisation", {})
-            bezeichnung = org_info.get("tns:bezeichnung", {})
-            name = bezeichnung.get("tns:bezeichnung.aktuell")
+            bezeichnung = org_info.get("tns:bezeichnung", {}) if org_info else {}
+            name = bezeichnung.get("tns:bezeichnung.aktuell") if bezeichnung else None
             angabenZurRechtsform = org_info.get("tns:angabenZurRechtsform", {})
-            rechtsform = angabenZurRechtsform.get("tns:rechtsform", {})
-            legal_form_code = rechtsform.get("code")
-            sitz = org_info.get("tns:sitz", {})
-            city = sitz.get("tns:ort")
-            anschrift = org_info.get("tns:anschrift", {})
-            staat = anschrift.get("tns:staat", {})
-            auswahl_staat = staat.get("tns:auswahl_staat", {})
-            staat = auswahl_staat.get("tns:staat", {})
-            state_code = staat.get("code") if staat is not None else None
+            rechtsform = angabenZurRechtsform.get("tns:rechtsform", {}) if angabenZurRechtsform else {}
+            legal_form_code = rechtsform.get("code") if rechtsform else None
+            sitz = org_info.get("tns:sitz", {}) if org_info else {}
+            city = sitz.get("tns:ort") if sitz else None
+            anschrift = org_info.get("tns:anschrift", {}) if org_info else {}
+            staat = anschrift.get("tns:staat", {}) if anschrift else {}
+            auswahl_staat = staat.get("tns:auswahl_staat", {}) if staat else {}
+            staat = auswahl_staat.get("tns:staat", {}) if auswahl_staat else {}
+            state_code = staat.get("code") if staat else None
             parties.append(
                 ParticipantOrganization(
                     role_number=role_number,
@@ -771,7 +773,7 @@ def refresh_db(db: Session = Depends(get_db)):
     db.execute(text("DELETE FROM participant_organizations"))
     db.execute(text("DELETE FROM participant_persons"))
 
-    company_dirs = glob.glob(f"/{DOWNLOAD_FOLDER}/*/*/")
+    company_dirs = glob.glob(f"{DOWNLOAD_FOLDER}/*/*/")
     for company_dir in company_dirs:
         # Get a list of all matching file paths for the current company
         xml_files = glob.glob(f"{company_dir}si/*.xml")
@@ -847,7 +849,7 @@ def count_company_with_ownership_table():
     Returns:
         A dictionary with the count of companies that have ownership tables.
     """
-    company_dirs = glob.glob(f"/{DOWNLOAD_FOLDER}/*/*/")
+    company_dirs = glob.glob(f"{DOWNLOAD_FOLDER}/*/*/")
     count = 0
     for company_dir in company_dirs:
         if (
@@ -867,7 +869,7 @@ def count_companies():
     Returns:
         A dictionary with the count of companies that have ownership tables.
     """
-    return {"companies": len(glob.glob(f"/{DOWNLOAD_FOLDER}/*/*/"))}
+    return {"companies": len(glob.glob(f"{DOWNLOAD_FOLDER}/*/*/"))}
 
 
 @app.get("/analytics/ownership-tables/count")
@@ -878,14 +880,20 @@ def count_ownership_tables():
     Returns:
         dict: A dictionary containing the count of ownership tables for each company.
     """
-    company_dirs = glob.glob(f"/{DOWNLOAD_FOLDER}/*/*/")
+    start_time = time.time()
+
+    company_dirs = glob.glob(f"{DOWNLOAD_FOLDER}/*/*/")
     count = 0
     for company_dir in company_dirs:
         files = glob.glob(f"{company_dir}dk/list_of_shareholders/*")
         for file in files:
             if not file.endswith(".json"):
                 count += 1
-    return {"companies": count}
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    return {"companies": count , "elapsed_time": elapsed_time}
+
+
 
 
 @app.get("/analytics/register-numbers/count")
@@ -896,4 +904,4 @@ def count_registernumbers():
     Returns:
         A dictionary containing the count of register numbers.
     """
-    return {"register-numbers": len(glob.glob(f"/{DOWNLOAD_FOLDER}/*/"))}
+    return {"register-numbers": len(glob.glob(f"{DOWNLOAD_FOLDER}/*/"))}
