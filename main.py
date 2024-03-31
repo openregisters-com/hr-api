@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import FastAPI, Depends
 import sqlite3
 import requests
+import logging
 from sqlalchemy import select
 
 from pydantic import BaseModel, Field
@@ -18,6 +19,8 @@ from dotenv import load_dotenv
 import xmltodict
 from urllib.parse import quote
 from sqlalchemy import text
+
+logger = logging.getLogger(__name__)
 
 
 load_dotenv()
@@ -593,7 +596,6 @@ def extract_company_info(data_dict, latest_file_path):
     register_number_addition = aktenzeichen_strukturiert.get("tns:zusatz")
 
     if not register_number:
-        # TODO take apart the freitext
         register_number = aktenzeichen_strukturiert.get("tns:aktenzeichen.freitext")
         if not register_number:
             register_number = (
@@ -603,7 +605,7 @@ def extract_company_info(data_dict, latest_file_path):
             )
         # Regex pattern
         pattern = r"(HRB)\s+(\d+)\s+([A-Z]+)"
-
+        logger.info(register_number)
         # Search for the pattern in the register_number
         match = re.search(pattern, register_number)
         if match:
@@ -620,7 +622,7 @@ def extract_company_info(data_dict, latest_file_path):
     company = Company(
         court_sender_code=court_sender_code,
         current_statute_date=current_statute_date,
-        current_designation=current_designation,  # TODO sometimes the name is inside Parties..
+        current_designation=current_designation,
         legal_form_code=legal_form_code,
         location=location,
         address_type_code=address_type_code,
@@ -706,7 +708,7 @@ def extract_parties(data_dict, company_number, latest_file_path):
             staat = anschrift.get("tns:staat", {})
             auswahl_staat = staat.get("tns:auswahl_staat", {})
             staat = auswahl_staat.get("tns:staat", {})
-            state_code = staat.get("code")
+            state_code = staat.get("code") if staat is not None else None
             parties.append(
                 ParticipantOrganization(
                     role_number=role_number,
@@ -800,7 +802,11 @@ def refresh_db(db: Session = Depends(get_db)):
         )
 
         if "tns:nachricht.reg.0400003" in data_dict:
-            company = extract_company_info(data_dict, url_path)
+            try:
+                company = extract_company_info(data_dict, url_path)
+            except TypeError:
+                logger.error(f"Error extracting company info from {latest_file_path}")
+                continue
             parties = extract_parties(data_dict, company.company_number, url_path)
             entries = extract_entries(data_dict, company.company_number, url_path)
         else:
@@ -851,6 +857,17 @@ def count_company_with_ownership_table():
         ):
             count += 1
     return {"companies": count}
+
+
+@app.get("/analytics/company/count")
+def count_companies():
+    """
+    Counts the number of companies that have ownership tables.
+
+    Returns:
+        A dictionary with the count of companies that have ownership tables.
+    """
+    return {"companies": len(glob.glob(f"/{DOWNLOAD_FOLDER}/*/*/"))}
 
 
 @app.get("/analytics/ownership-tables/count")
