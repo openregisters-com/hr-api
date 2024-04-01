@@ -804,17 +804,16 @@ def refresh_db(db: Session = Depends(get_db)):
             "https://commandcenter.hippocampus-vector.ts.net:10000/download/"
             + quote(latest_file_path.replace("/root/download/", ""))
         )
-
-        if "tns:nachricht.reg.0400003" in data_dict:
-            try:
+        try:
+            if "tns:nachricht.reg.0400003" in data_dict:
                 company = extract_company_info(data_dict, url_path)
-            except TypeError:
-                logger.error(f"Error extracting company info from {latest_file_path}")
-                continue
-            parties = extract_parties(data_dict, company.company_number, url_path)
-            entries = extract_entries(data_dict, company.company_number, url_path)
-        else:
-            print(f"File {latest_file_path} does not contain the required data")
+                parties = extract_parties(data_dict, company.company_number, url_path)
+                entries = extract_entries(data_dict, company.company_number, url_path)
+            else:
+                print(f"File {latest_file_path} does not contain the required data")
+        except TypeError:
+            logger.error(f"TypeError adding data to the database for {latest_file_path}")
+            continue
 
         if company.current_designation is None:
             for party in parties:
@@ -842,6 +841,7 @@ def refresh_db(db: Session = Depends(get_db)):
             db.rollback()
             logger.error(f"IntegrityError adding data to the database for {latest_file_path}")
             continue
+
 
         db.close()
 
