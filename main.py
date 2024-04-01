@@ -7,6 +7,8 @@ import logging
 import os
 import time
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+
 
 from pydantic import BaseModel, Field
 from hr_api.database import engine, SessionLocal
@@ -560,8 +562,8 @@ def extract_company_info(data_dict, latest_file_path):
     current_designation = bezeichnung.get("tns:bezeichnung.aktuell")
 
     angabenZurRechtsform = rechtstraeger.get("tns:angabenZurRechtsform", {})
-    rechtsform = angabenZurRechtsform.get("tns:rechtsform", {}) if angabenZurRechtsform else {}
-    legal_form_code = rechtsform.get("code")
+    rechtsform = angabenZurRechtsform.get("tns:rechtsform", {}) if isinstance(angabenZurRechtsform, dict) else {}
+    legal_form_code = rechtsform.get("code") if isinstance(rechtsform, dict) else None
 
     sitz = rechtstraeger.get("tns:sitz", {}) if rechtstraeger else {}
     location = sitz.get("tns:ort")
@@ -820,23 +822,30 @@ def refresh_db(db: Session = Depends(get_db)):
                     if party.role_name_code == "287":  # ["287","Rechtsträger(in)",""]
                         company.current_designation = party.name
                         break
+        
+        try:
+            db.add(models.Companies(**company.model_dump()))
 
-        # Insert company into the database
-        db.add(models.Companies(**company.model_dump()))
+            for party in parties:
+                party_values = party.model_dump()
+                if isinstance(party, models.ParticipantPersons):
+                    db.add(models.ParticipantPersons(**party_values))
+                elif isinstance(party, models.ParticipantOrganizations):
+                    db.add(models.ParticipantOrganizations(**party_values))
 
-        for party in parties:
-            party_values = party.model_dump()
-            if isinstance(party, models.ParticipantPersons):
-                db.add(models.ParticipantPersons(**party_values))
-            elif isinstance(party, models.ParticipantOrganizations):
-                db.add(models.ParticipantOrganizations(**party_values))
+            for entry_item in entries:
+                entry_values = entry_item.model_dump()
+                db.add(models.Entries(**entry_values))
 
-        for entry_item in entries:
-            entry_values = entry_item.model_dump()
-            db.add(models.Entries(**entry_values))
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            logger.error(f"IntegrityError adding data to the database for {latest_file_path}")
+            continue
 
-    db.commit()
-    db.close()
+        db.close()
+
+    
 
     return {"message": f"Added {len(company_dirs)} companies to the database.."}
 
