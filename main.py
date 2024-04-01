@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 DOWNLOAD_FOLDER = os.getenv("DOWNLOAD_FOLDER")
+FILESERVER_URL = os.getenv("FILESERVER_URL")
 
 app = FastAPI()
 
@@ -801,7 +802,7 @@ def refresh_db(db: Session = Depends(get_db)):
         data_dict = xmltodict.parse(xml_data)
 
         url_path = (
-            "https://commandcenter.hippocampus-vector.ts.net:10000/download/"
+            FILESERVER_URL
             + quote(latest_file_path.replace("/root/download/", ""))
         )
         try:
