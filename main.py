@@ -8,6 +8,8 @@ import os
 import time
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.sql import exists
+
 
 
 from pydantic import BaseModel, Field
@@ -36,32 +38,6 @@ app = FastAPI()
 
 models.Base.metadata.create_all(bind=engine)
 
-URLs = [
-    (
-        "geschlecht",
-        "https://www.xrepository.de/api/xrepository/urn:xoev-de:xjustiz:codeliste:gds.geschlecht_2.1/download/GDS.Geschlecht_2.1.json",
-    ),
-    (
-        "rechtsform",
-        "https://www.xrepository.de/api/xrepository/urn:xoev-de:xjustiz:codeliste:gds.rechtsform_3.4/download/GDS.Rechtsform_3.4.json",
-    ),
-    (
-        "gerichtscode",
-        "https://www.xrepository.de/api/xrepository/urn:xoev-de:xgewerbeanzeige:codeliste:registergerichte_11/download/Registergerichte_11.json",
-    ),
-    (
-        "rollenbezeichnung",
-        "https://www.xrepository.de/api/xrepository/urn:xoev-de:xjustiz:codeliste:gds.rollenbezeichnung_3.5/download/GDS.Rollenbezeichnung_3.5.json",
-    ),
-    (
-        "eintragungsart",
-        "https://www.xrepository.de/api/xrepository/urn:xoev-de:xjustiz:codeliste:reg.eintragungsart_2.0/download/REG.Eintragungsart_2.0.json",
-    ),
-    (
-        "anschriftstyp",
-        "https://www.xrepository.de/api/xrepository/urn:xoev-de:xjustiz:codeliste:gds.anschriftstyp_3.0/download/GDS.Anschriftstyp_3.0.json",
-    ),
-]
 
 
 def get_db():
@@ -81,38 +57,72 @@ def session_manager():
         db.close()
 
 
-metadata = MetaData()
 
-for entry in URLs:
-    url = entry[1]
-    name = entry[0]
-    response = requests.get(url, timeout=30)
-    if response.status_code == 200:
-        json_data = response.json()
-    else:
-        print(f"Failed to retrieve JSON data from the URL: {url}")
 
-    data = json_data["daten"]
-    columns = [column["spaltennameTechnisch"] for column in json_data["spalten"]]
+@app.get("/admin/refresh-metatables")
+def refresh_metatable():
+    metadata = MetaData()
 
-    # Convert each list in data to a dictionary using columns for keys
-    data_dicts = [dict(zip(columns, item)) for item in data]
+    URLs = [
+        (
+            "geschlecht",
+            "https://www.xrepository.de/api/xrepository/urn:xoev-de:xjustiz:codeliste:gds.geschlecht_2.1/download/GDS.Geschlecht_2.1.json",
+        ),
+        (
+            "rechtsform",
+            "https://www.xrepository.de/api/xrepository/urn:xoev-de:xjustiz:codeliste:gds.rechtsform_3.4/download/GDS.Rechtsform_3.4.json",
+        ),
+        (
+            "gerichtscode",
+            "https://www.xrepository.de/api/xrepository/urn:xoev-de:xgewerbeanzeige:codeliste:registergerichte_11/download/Registergerichte_11.json",
+        ),
+        (
+            "rollenbezeichnung",
+            "https://www.xrepository.de/api/xrepository/urn:xoev-de:xjustiz:codeliste:gds.rollenbezeichnung_3.5/download/GDS.Rollenbezeichnung_3.5.json",
+        ),
+        (
+            "eintragungsart",
+            "https://www.xrepository.de/api/xrepository/urn:xoev-de:xjustiz:codeliste:reg.eintragungsart_2.0/download/REG.Eintragungsart_2.0.json",
+        ),
+        (
+            "anschriftstyp",
+            "https://www.xrepository.de/api/xrepository/urn:xoev-de:xjustiz:codeliste:gds.anschriftstyp_3.0/download/GDS.Anschriftstyp_3.0.json",
+        ),
+    ]
 
-    # Get the table object
-    table = Table(name, metadata, autoload_with=engine)
-
-    # Insert data into the SQLite database
-    for item in data_dicts:
-        # SQLAlchemy's insert function can take a dictionary directly
+    for entry in URLs:
+        
+        name = entry[0]
+        table = Table(name, metadata, autoload_with=engine)
         with session_manager() as session:
-            stmt = table.insert().values(**item)
-            try:
-                session.execute(stmt)
-                session.commit()
-            except IntegrityError:
-                session.rollback()
+            if session.query(table).count() > 0:
+                logger.info(f"Data already exists in the table: {name}, skipping URL.")
                 continue
+        data = json_data["daten"]
+        columns = [column["spaltennameTechnisch"] for column in json_data["spalten"]]
 
+        # Convert each list in data to a dictionary using columns for keys
+        url = entry[1]
+        # Get the table object
+        response = requests.get(url, timeout=30)
+        if response.status_code == 200:
+            json_data = response.json()
+        else:
+            logger.error(f"Failed to retrieve JSON data from the URL: {url}")
+        # Insert data into the SQLite database
+        data_dicts = [dict(zip(columns, item)) for item in data]
+        for item in data_dicts:
+            # SQLAlchemy's insert function can take a dictionary directly
+            with session_manager() as session:
+                stmt = table.insert().values(**item)
+                try:
+                    session.execute(stmt)
+                    session.commit()
+                except IntegrityError:
+                    session.rollback()
+                    continue
+
+refresh_metatable()
 
 class RegisterEntry(BaseModel):
 
