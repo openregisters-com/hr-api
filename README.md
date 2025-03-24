@@ -70,6 +70,3 @@ Contributions are welcome! Feel free to fork this repository and submit pull req
 
 ## License
 This project is licensed under the MIT License. See the `LICENSE` file for details.
-
-## Contact
-For questions or support, open an issue or reach out via email: your.email@example.com
